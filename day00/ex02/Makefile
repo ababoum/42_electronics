@@ -7,7 +7,7 @@ SRC = main.c
 all: hex flash
 
 hex: $(SRC)
-	$(CC) -mmcu=atmega328p -DF_CPU=8000000UL -o $(NAME).bin $(SRC)
+	$(CC) -mmcu=atmega328p -DF_CPU=500000UL -o $(NAME).bin $(SRC)
 	avr-objcopy -O ihex $(NAME).bin $(NAME).hex
 
 flash: $(NAME).hex

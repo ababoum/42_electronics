@@ -1,5 +1,5 @@
 CC = avr-gcc
-FCPU = 8000000UL
+FCPU = 500000UL
 NAME = main
 MCU = atmega328p
 SRC = main.c

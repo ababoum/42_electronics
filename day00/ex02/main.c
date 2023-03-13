@@ -11,9 +11,12 @@ int main(void)
     while (1)
     {
         i = 0;
-        // Continuously set the bit corresponding to PB0 to 1 in the Port Register
         PORTB ^= (1 << PB0);
-        while (i < F_CPU / 2)
-            i++;
+
+        // each loop needs 8 clock ticks
+        while (i < F_CPU / 8)
+        {
+            ++i;
+        }
     }
 }

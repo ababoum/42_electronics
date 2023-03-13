@@ -1,17 +1,20 @@
 CC = avr-gcc
-
+FCPU = 16000000UL
 NAME = main
-
+MCU = atmega328p
 SRC = main.c
+DEVICE = /dev/ttyUSB0
+PROGRAMMER = arduino
+FLAGS = -O1 -g
 
 all: hex flash
 
 hex: $(SRC)
-	$(CC) -mmcu=atmega328p -DF_CPU=500000UL -o $(NAME).bin $(SRC)
+	$(CC) -mmcu=$(MCU) $(FLAGS) -DF_CPU=$(FCPU) -o $(NAME).bin $(SRC)
 	avr-objcopy -O ihex $(NAME).bin $(NAME).hex
 
 flash: $(NAME).hex
-	avrdude -p atmega328p -c arduino -P /dev/ttyUSB0 -U flash:w:$(NAME).hex
+	avrdude -p $(MCU) -c $(PROGRAMMER) -P $(DEVICE) -U flash:w:$(NAME).hex
 
 clean: 
 	rm -f $(NAME).bin $(NAME).hex

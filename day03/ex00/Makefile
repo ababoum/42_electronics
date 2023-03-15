@@ -3,7 +3,11 @@ FCPU = 16000000UL
 NAME = main
 MCU = atmega328p
 SRC = main.c
-DEVICE = /dev/ttyUSB0
+ifeq ($(shell uname -r),4.4.0-19041-Microsoft)
+	DEVICE = /dev/ttyS6
+else
+	DEVICE = /dev/ttyUSB0
+endif
 PROGRAMMER = arduino
 
 all: hex flash

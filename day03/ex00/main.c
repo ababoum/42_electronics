@@ -1,8 +1,11 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#define BAUD 115200
-#define MYUBRR F_CPU / 16 / BAUD - 1
+#ifndef F_CPU
+#define F_CPU 16000000UL
+#endif
+#define BAUD 9600
+#define MYUBRR F_CPU / (16L * BAUD) - 1
 
 void uart_init(unsigned int ubrr)
 {
@@ -10,13 +13,13 @@ void uart_init(unsigned int ubrr)
     UBRR0H = (unsigned char)(ubrr >> 8);
     UBRR0L = (unsigned char)ubrr;
 
-    // Set MSPI mode of operation and SPI data mode 0
-    UCSR0C = (1 << UMSEL01) | (1 << UMSEL00) | (0 << UCPHA0) | (0 << UCPOL0);
+    // Set frame format: 8 data bits, 1 stop bit, no parity
+    UCSR0C |= (1 << UCSZ01) | (1 << UCSZ00);
     // Enable receiver and transmitter.
-    UCSR0B = (1 << RXEN0) | (1 << TXEN0);
+    UCSR0B |= (1 << TXEN0);
 }
 
-void uart_tx(char c)
+void uart_tx(unsigned char c)
 {
     /* Wait for empty transmit buffer */
     while (!(UCSR0A & (1 << UDRE0)))
@@ -31,7 +34,7 @@ int main(void)
 
     while (1)
     {
-        uart_tx('Z');
+        uart_tx('z');
         _delay_ms(100);
     }
 }

@@ -14,3 +14,6 @@
 
 ### Day 3:
 * UART protocol
+
+### Day 4:
+* I2C transmission (temperature & humidity sensor)

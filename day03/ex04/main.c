@@ -76,14 +76,6 @@ int ft_strcmp(const char *s1, const char *s2)
     return *s1 - *s2;
 }
 
-uint32_t ft_strlen(const char *s)
-{
-    uint32_t i = 0;
-    while (s[i])
-        i++;
-    return i;
-}
-
 void uart_tx(char c)
 {
     // Wait for empty transmit buffer

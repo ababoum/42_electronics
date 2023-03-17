@@ -148,6 +148,40 @@ void i2c_start(void)
     }
 }
 
+void i2c_write(unsigned char data)
+{
+    // Load data into TWDR register. Clear TWINT bit in TWCR to start
+    // transmission of data
+    TWDR = data;
+    TWCR = (1 << TWINT) | (1 << TWEN);
+
+    // Wait for TWINT flag set. This indicates that the data has been
+    // transmitted, and ACK/NACK has been received.
+    while (!(TWCR & (1 << TWINT)))
+        ;
+
+    // Check value of TWI status register. Mask prescaler bits. If
+    // status different from MT_DATA_ACK go to ERROR
+    if ((TWSR & 0xF8) != MT_DATA_ACK)
+        ERROR("Data not received. Exiting...");
+}
+
+void i2c_read(void)
+{
+    // Clear TWINT bit in TWCR to start transmission of data
+    TWCR = (1 << TWINT) | (1 << TWEN);
+
+    // Wait for TWINT flag set. This indicates that the data has been
+    // received, and ACK/NACK has been received.
+    while (!(TWCR & (1 << TWINT)))
+        ;
+
+    // Check value of TWI status register. Mask prescaler bits. If
+    // status different from MT_DATA_ACK go to ERROR
+    if ((TWSR & 0xF8) != MT_DATA_ACK)
+        ERROR("Data not received. Exiting...");
+}
+
 int main(void)
 {
     error_status = 0;

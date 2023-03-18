@@ -1,21 +1,13 @@
 #include "main.h"
-#include <avr/io.h>
-#include <util/delay.h>
 
 int error_status;
-unsigned char last_read_byte;
+uint8_t last_read_byte;
 
 typedef enum mode
 {
     READ,
     WRITE
 } mode_t;
-
-enum ack
-{
-    NACK = 0,
-    ACK = 1
-};
 
 void i2c_init(void)
 {
@@ -136,80 +128,85 @@ void i2c_read(uint8_t ack)
     }
 }
 
+void print_temp_hum_state(uint8_t *raw_data)
+{
+    uint32_t temp, hum;
+    double temp_c, hum_c;
+
+    hum = raw_data[1];
+    hum <<= 8;
+    hum += raw_data[2];
+    hum <<= 4;
+    hum += (raw_data[3] & 0xF0) >> 4;
+
+    temp = raw_data[3] & 0x0F;
+    temp <<= 8;
+    temp += raw_data[4];
+    temp <<= 8;
+    temp += raw_data[5];
+
+    // hum_c = (double)hum / (1ULL << 20);
+    hum_c = (double)hum / 1048576.0 * 100.0;
+    // temp_c = (double)temp / (1ULL << 20) * 200 - 50;
+    temp_c = (double)temp / 1048576.0 * 200.0 - 50.0;
+
+    char temp_str[100] = {0};
+    char hum_str[100] = {0};
+
+    dtostrf(temp_c, 4, 2, temp_str);
+    dtostrf(hum_c, 4, 2, hum_str);
+
+    uart_printstr("Temperature: ");
+    uart_printstr(temp_str);
+    uart_printstr("°C, Humidity: ");
+    uart_printstr(hum_str);
+    uart_printstr("%\r\n");
+}
+
 void request_raw_data(void)
 {
+    uint8_t raw_data[6] = {0};
+
     // Start measurement
     i2c_start(WRITE);
     i2c_write(MEASURE_CMD);
     i2c_write(DATA0_CMD);
     i2c_write(DATA1_CMD);
-    // i2c_stop();
+    i2c_stop();
 
     _delay_ms(200);
 
     // Read data from the sensor
     i2c_start(READ);
 
+    // State
     i2c_read(ACK);
-    uart_printstr("State: ");
-    GREEN_ON();
-    uart_printnb_hex(last_read_byte);
-    uart_printstr(" (");
-    uart_printnb_bin(last_read_byte);
-    uart_printstr(")");
-    COLOR_OFF();
-    uart_printstr("\r\n");
-
-    i2c_read(ACK);
-    uart_printstr("Humidity data 1: ");
-    RED_ON();
-    uart_printnb_hex(last_read_byte);
-    COLOR_OFF();
-    uart_printstr("\r\n");
-
-    i2c_read(ACK);
-    uart_printstr("Humidity data 2: ");
-    RED_ON();
-    uart_printnb_hex(last_read_byte);
-    COLOR_OFF();
-    uart_printstr("\r\n");
-
-    i2c_read(ACK);
-    uart_printstr("Humidity/Temp data: ");
-    RED_ON();
-    uart_printnb_hex(last_read_byte);
-    COLOR_OFF();
-    uart_printstr("\r\n");
-
-    i2c_read(ACK);
-    uart_printstr("Temp data 1: ");
-    RED_ON();
-    uart_printnb_hex(last_read_byte);
-    COLOR_OFF();
-    uart_printstr("\r\n");
-
-    i2c_read(ACK);
-    uart_printstr("Temp data 2: ");
-    RED_ON();
-    uart_printnb_hex(last_read_byte);
-    COLOR_OFF();
-    uart_printstr("\r\n");
+    raw_data[0] = last_read_byte;
+    if (!(raw_data[0] & (1 << 7)))
+    {
+        _delay_ms(200);
+    }
+    for (int i = 1; i < 6; i++)
+    {
+        i2c_read(ACK);
+        raw_data[i] = last_read_byte;
+    }
 
     i2c_read(NACK);
-    uart_printstr("CRC data: ");
-    GREEN_ON();
-    uart_printnb_hex(last_read_byte);
-    COLOR_OFF();
-    uart_printstr("\r\n");
+    // We don't do anything with the CRC byte for now
 
     i2c_stop();
+
+    GREEN_ON();
+    print_temp_hum_state(raw_data);
+    COLOR_OFF();
 }
 
 int main(void)
 {
     error_status = 0;
     uart_init(MYUBRR);
-    uart_printstr("Program started\r\n");
+    uart_printstr("========== Program started ==========\r\n");
 
     i2c_init();
     CHECK_ERROR();

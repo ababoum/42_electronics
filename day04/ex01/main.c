@@ -1,7 +1,6 @@
 #include <avr/io.h>
 #include <util/twi.h>
-
-// Source: https://www.electronicwings.com/avr-atmega/atmega1632-i2c
+#include <util/delay.h>
 
 #ifndef F_CPU
 #define F_CPU 16000000UL
@@ -20,6 +19,10 @@
     error_status = 1;      \
     return;
 
+#define CHECK_ERROR()      \
+    if (error_status)      \
+        return 1;
+
 #define ECHO_STATUS(status_code, msg) \
     uart_printstr("Status code: ");   \
     uart_printstr("0x");              \
@@ -28,13 +31,21 @@
     uart_printstr(msg);               \
     uart_printstr("\r\n");
 
-#define MT_SLA_ACK 0x18  // Master transmitter, SLA+W has been transmitted; ACK has been received
-#define MT_DATA_ACK 0x28 // Master transmitter, data has been transmitted; ACK has been received
-#define DATA 0x33        // Command to start measurement
-#define SLA_W 0x38       // Temperature sensor AHT20 (U3)
-#define SLA_R 0x39       // Temperature sensor AHT20 (U3)
+#define MEASURE_CMD 0xAC // Command to start measurement
+#define STATUS_CMD 0x71  // Command to read status
+#define DATA0_CMD 0x33   // Command to read data (param1)
+#define DATA1_CMD 0x00   // Command to read data (param2)
+#define SLA_ADDR 0x38    // Temperature sensor AHT20 (U3)
+#define SLA_W (SLA_ADDR << 1)
+#define SLA_R ((SLA_ADDR << 1) | 1)
 
 int error_status;
+unsigned char last_read_byte;
+
+typedef enum mode {
+    READ,
+    WRITE
+} mode_t;
 
 void uart_tx(char c)
 {
@@ -74,6 +85,17 @@ void uart_printnb_hex(unsigned int nb)
     uart_tx(BASE_16[nb % 16]);
 }
 
+void uart_printnb_bin(unsigned int nb)
+{
+    for (int i = 0; i < 8; i++)
+    {
+        if (nb & (1 << (7 - i)))
+            uart_tx('1');
+        else
+            uart_tx('0');
+    }
+}
+
 void uart_init(unsigned int ubrr)
 {
     UBRR0H = (ubrr >> 8);
@@ -91,7 +113,7 @@ void i2c_init(void)
     TWSR = 0;
     TWBR = ((F_CPU / SQL_FREQ) - 16) / (2 * PRESCALER);
     // Set our slave address
-    TWAR = SLA_W;
+    TWAR = SLA_ADDR;
 }
 
 void i2c_stop(void)
@@ -106,7 +128,7 @@ void i2c_stop(void)
     ECHO_STATUS(0xF8, "Stop condition transmitted");
 }
 
-void i2c_start(void)
+void i2c_start(mode_t mode)
 {
     uint8_t status;
 
@@ -117,15 +139,18 @@ void i2c_start(void)
     while (!(TWCR & (1 << TWINT)))
         ;
     status = TWSR & 0xF8;
-    if (status != TW_START)
+    
+    mode == READ ? uart_printstr("[READ MODE] ") : uart_printstr("[WRITE MODE] ");
+    ECHO_STATUS(status, "Start condition transmitted");
+    
+    if (mode == READ)
     {
-        ERROR("Start not received. Exiting...");
+        TWDR = SLA_R;
     }
     else
     {
-        ECHO_STATUS(status, "Start condition transmitted");
+        TWDR = SLA_W;
     }
-    TWDR = SLA_W;
     TWCR = (1 << TWINT) | (1 << TWEN);
 
     // Wait for TWINT flag set. This indicates that the SLA+W has
@@ -134,17 +159,17 @@ void i2c_start(void)
         ;
 
     status = TWSR & 0xF8;
-    if (status & MT_SLA_ACK)
+    if (status & TW_MT_SLA_ACK)
     {
-        ECHO_STATUS(status, "SLA+W transmitted, ACK received");
+        ECHO_STATUS(status, "SLA+W/R transmitted, ACK received");
     }
     else if (status & TW_MT_SLA_NACK)
     {
-        ECHO_STATUS(status, "SLA+W transmitted, NACK received");
+        ECHO_STATUS(status, "SLA+W/R transmitted, NACK received");
     }
     else
     {
-        ERROR("SLA+W not transmitted. Exiting...");
+        // ERROR("SLA+W/R not transmitted. Exiting...");
     }
 }
 
@@ -162,8 +187,17 @@ void i2c_write(unsigned char data)
 
     // Check value of TWI status register. Mask prescaler bits. If
     // status different from MT_DATA_ACK go to ERROR
-    if ((TWSR & 0xF8) != MT_DATA_ACK)
+    if ((TWSR & 0xF8) != TW_MT_DATA_ACK)
+    {
         ERROR("Data not received. Exiting...");
+    }
+    else
+    {
+        ECHO_STATUS(TWSR & 0xF8, "Data transmitted, ACK received");
+        uart_printstr("Data sent to slave: 0x");
+        uart_printnb_hex(data);
+        uart_printstr("\r\n");
+    }	
 }
 
 void i2c_read(void)
@@ -178,8 +212,87 @@ void i2c_read(void)
 
     // Check value of TWI status register. Mask prescaler bits. If
     // status different from MT_DATA_ACK go to ERROR
-    if ((TWSR & 0xF8) != MT_DATA_ACK)
+    if ((TWSR & 0xF8) == TW_MT_DATA_ACK || (TWSR & 0xF8) == TW_MR_DATA_NACK)
+    {
+        last_read_byte = TWDR;
+        ECHO_STATUS(TWSR & 0xF8, "Data received, ACK/NACK transmitted to slave");
+    }
+    else
+    {
         ERROR("Data not received. Exiting...");
+    }
+}
+
+void send_ack(void)
+{
+    // Send ACK to the sensor
+    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWEA);
+
+    // Wait for TWINT flag set. This indicates that the data has been
+    // received, and ACK/NACK has been received.
+    while (!(TWCR & (1 << TWINT)))
+        ;
+}
+
+void request_raw_data(void)
+{
+    // Start measurement
+    i2c_start(WRITE);
+    i2c_write(MEASURE_CMD);
+    i2c_write(DATA0_CMD);
+    i2c_write(DATA1_CMD);
+    i2c_stop();
+
+    _delay_ms(100);
+
+    // Read data from the sensor
+    i2c_start(READ);
+
+    i2c_read();
+    uart_printstr("State: ");
+    uart_printnb_hex(last_read_byte);
+    uart_printstr(" (");
+    uart_printnb_bin(last_read_byte);
+    uart_printstr(")");
+    uart_printstr("\r\n");
+    send_ack();
+
+    i2c_read();
+    uart_printstr("Humidity data 1: ");
+    uart_printnb_hex(last_read_byte);
+    uart_printstr("\r\n");
+    send_ack();
+
+    i2c_read();
+    uart_printstr("Humidity data 2: ");
+    uart_printnb_hex(last_read_byte);
+    uart_printstr("\r\n");
+    send_ack();
+
+    i2c_read();
+    uart_printstr("Humidity/Temp data: ");
+    uart_printnb_hex(last_read_byte);
+    uart_printstr("\r\n");
+    send_ack();
+
+    i2c_read();
+    uart_printstr("Temp data 1: ");
+    uart_printnb_hex(last_read_byte);
+    uart_printstr("\r\n");
+    send_ack();
+
+    i2c_read();
+    uart_printstr("Temp data 2: ");
+    uart_printnb_hex(last_read_byte);
+    uart_printstr("\r\n");
+    send_ack();
+
+    i2c_read();
+    uart_printstr("CRC data: ");
+    uart_printnb_hex(last_read_byte);
+    uart_printstr("\r\n");
+
+    i2c_stop();
 }
 
 int main(void)
@@ -187,15 +300,37 @@ int main(void)
     error_status = 0;
     uart_init(MYUBRR);
     i2c_init();
-    if (error_status)
-        return 1;
-    i2c_start();
-    if (error_status)
-        return 1;
+    CHECK_ERROR();
+check_status:
+    i2c_start(WRITE);
+    CHECK_ERROR();
+    i2c_write(STATUS_CMD);
+    CHECK_ERROR();
+    // i2c_stop();
+
+    i2c_start(READ);
+    // CHECK_ERROR();
+    i2c_read();
+    CHECK_ERROR();
+    if (last_read_byte & 0b10000000)
+    {
+        uart_printstr("Device is busy\n\r");
+        _delay_ms(100);
+        goto check_status;
+    }
+    else
+    {
+        uart_printstr("Device is ready\n\r");
+        if (last_read_byte & (1 << 3))
+            uart_printstr("Device is calibrated\r\n");
+        else
+            uart_printstr("Warning: Device is not calibrated\r\n");
+    }
     i2c_stop();
 
     while (1)
     {
-        // Do nothing
+        _delay_ms(2000);
+        request_raw_data();
     }
 }

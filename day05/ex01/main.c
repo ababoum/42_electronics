@@ -15,29 +15,29 @@
 #define EEPROM_COUNTER_ADDRESS 0
 
 
-uint8_t counter[4];
+uint8_t counters[4];
 uint8_t idx = 0;
 int button_1_pressed = 0;
 int button_2_pressed = 0;
 
 void display_counter_LED(void)
 {
-    if (counter[idx] & 0b0001)
+    if (counters[idx] & 0b0001)
         PORTB |= (1 << LED_PIN0);
     else
         PORTB &= ~(1 << LED_PIN0);
 
-    if (counter[idx] & 0b0010)
+    if (counters[idx] & 0b0010)
         PORTB |= (1 << LED_PIN1);
     else
         PORTB &= ~(1 << LED_PIN1);
 
-    if (counter[idx] & 0b0100)
+    if (counters[idx] & 0b0100)
         PORTB |= (1 << LED_PIN2);
     else
         PORTB &= ~(1 << LED_PIN2);
 
-    if (counter[idx] & 0b1000)
+    if (counters[idx] & 0b1000)
         PORTB |= (1 << LED_PIN3);
     else
         PORTB &= ~(1 << LED_PIN3);
@@ -49,9 +49,9 @@ void increment_EEPROM_counter(void)
     uart_printnb(idx);
     uart_printstr("\n\r");
     
-    ++(counter[idx]);
-    counter[idx] %= 16;
-    eeprom_update_block(counter + idx,
+    ++(counters[idx]);
+    counters[idx] %= 16;
+    eeprom_update_block(counters + idx,
                         (uint8_t *)(EEPROM_COUNTER_ADDRESS) + idx,
                         sizeof(uint8_t));
 }
@@ -84,7 +84,7 @@ void monitor_buttons(void)
             increment_EEPROM_counter();
             
             uart_printstr("Counter value: ");
-            uart_printnb(counter[idx]);
+            uart_printnb(counters[idx]);
             uart_printstr("\n\r");
 
             button_2_pressed = 1;
@@ -111,7 +111,9 @@ int main()
     // EEARL = EEPROM_COUNTER_ADDRESS;
 
     // Load counter value from EEPROM
-    eeprom_read_block(&counter, (unsigned long *)EEPROM_COUNTER_ADDRESS, sizeof(counter));
+    eeprom_read_block(counters,
+                        (uint8_t *)EEPROM_COUNTER_ADDRESS,
+                        sizeof(uint8_t) * 4);
 
     while (0xDECAF)
     {

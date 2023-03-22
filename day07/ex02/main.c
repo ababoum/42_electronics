@@ -15,11 +15,11 @@ void init_adc(void)
     // leading to inaccurate readings.
     ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 
-    // 8-bit resolution, Vref = Vcc
-    ADMUX |= (1 << ADLAR) | (1 << REFS0);
+    // 10-bit resolution, Vref = Vcc
+    ADMUX |= (1 << REFS0);
 }
 
-uint8_t read_adc_8b(uint8_t channel)
+uint16_t read_adc_10b(uint8_t channel)
 {
     // Select ADC channel
     ADMUX = (ADMUX & 0xF0) | (channel & 0x0F);
@@ -29,7 +29,7 @@ uint8_t read_adc_8b(uint8_t channel)
     while (ADCSRA & (1 << ADSC))
         ;
     // Return ADC result
-    return ADCH;
+    return ADC & 0x3FF;
 }
 
 int main(void)
@@ -37,19 +37,19 @@ int main(void)
     uart_init();
     init_adc();
 
-    uint8_t results[3] = {0};
+    uint16_t results[3] = {0};
     while (1)
     {
-        results[0] = read_adc_8b(ADC_POT);
-        results[1] = read_adc_8b(ADC_LDR);
-        results[2] = read_adc_8b(ADC_NTC);
+        results[0] = read_adc_10b(ADC_POT);
+        results[1] = read_adc_10b(ADC_LDR);
+        results[2] = read_adc_10b(ADC_NTC);
 
         // Display the results on UART
-        uart_printnb_hex(results[0]);
+        uart_printnb(results[0]);
         uart_printstr(", ");
-        uart_printnb_hex(results[1]);
+        uart_printnb(results[1]);
         uart_printstr(", ");
-        uart_printnb_hex(results[2]);
+        uart_printnb(results[2]);
         uart_printstr("\r\n");
         _delay_ms(20);
     }

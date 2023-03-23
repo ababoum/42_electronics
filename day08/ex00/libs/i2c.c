@@ -29,7 +29,7 @@ void i2c_start(uint8_t address, int mode)
     while (!(TWCR & (1 << TWINT)))
         ;
 
-    mode == READ ? uart_printstr("[READ MODE] ") : uart_printstr("[WRITE MODE] ");
+    mode == TW_READ ? uart_printstr("[READ MODE] ") : uart_printstr("[WRITE MODE] ");
     ECHO_STATUS(TWSR & 0xF8, "Start condition transmitted.");
 
     TWDR = address << 1 | mode;
@@ -40,15 +40,15 @@ void i2c_start(uint8_t address, int mode)
     while (!(TWCR & (1 << TWINT)))
         ;
 
-    status = TWSR & 0xF8;
     if (TWSR & 0xF8 == TW_MT_SLA_ACK || TWSR & 0xF8 == TW_MR_SLA_ACK ||
         TWSR & 0xF8 == TW_MT_SLA_NACK || TWSR & 0xF8 == TW_MR_SLA_NACK)
     {
-        ECHO_STATUS(status, "SLA+W/R transmitted, ACK/NACK received.");
+        ECHO_STATUS(TWSR & 0xF8, "SLA+W/R transmitted, ACK/NACK received.");
     }
     else
     {
-        ERROR("SLA+W/R not transmitted. Exiting...");
+        ERROR(TWSR & 0xF8, "SLA+W/R not transmitted. Exiting...");
+        return ;
     }
 }
 
@@ -68,7 +68,8 @@ void i2c_write(uint8_t ack, uint8_t data)
     // status different from MT_DATA_ACK go to ERROR
     if ((TWSR & 0xF8) != TW_MT_DATA_ACK)
     {
-        ERROR("Data not acknoledged. Exiting...");
+        ERROR(TWSR & 0xF8, "Data not acknoledged. Exiting...");
+        return ;
     }
     else
     {
@@ -98,7 +99,7 @@ uint8_t i2c_read(uint8_t ack)
     }
     else
     {
-        ERROR("Data not received. Exiting...");
+        ERROR(TWSR & 0xF8, "Data not received. Exiting...");
         return 0;
     }
 }

@@ -3,6 +3,7 @@
 
 #include <avr/io.h>
 #include <util/twi.h>
+#include "uart.h"
 
 #ifndef F_CPU
 #define F_CPU 16000000UL
@@ -19,8 +20,7 @@ uint8_t error_status;
     uart_printstr(" --- ");         \
     uart_printstr(msg);             \
     uart_printstr("\r\n");          \
-    error_status = 1;               \
-    return;
+    error_status = 1;
 
 #define CHECK_ERROR() \
     if (error_status) \
@@ -36,8 +36,8 @@ uint8_t error_status;
 
 void i2c_init(void);
 void i2c_stop(void);
-void i2c_start(mode_t mode);
-void i2c_write(unsigned char data);
-void i2c_read(uint8_t ack);
+void i2c_start(uint8_t address, int mode);
+void i2c_write(uint8_t ack, uint8_t data);
+uint8_t i2c_read(uint8_t ack);
 
 #endif

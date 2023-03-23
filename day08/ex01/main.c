@@ -16,7 +16,7 @@ void SPI_MasterInit(void)
     // Set MOSI and SCK output
     DDR_SPI |= (1 << MOSI) | (1 << SCK) | (1 << SS);
     // Enable SPI, Master, set clock rate fck/16
-    SPCR = (1 << SPE)| (1 << MSTR)| (1 << SPR0);
+    SPCR = (1 << SPE) | (1 << MSTR) | (1 << SPR0);
 }
 
 void SPI_MasterTransmit(uint8_t cData)
@@ -29,23 +29,39 @@ void SPI_MasterTransmit(uint8_t cData)
     uart_printnb_hex(cData);
 }
 
-void apa102_start(void) {
-    for (uint8_t i = 0; i < 4; i++) {
+void apa102_start(void)
+{
+    for (uint8_t i = 0; i < 4; i++)
+    {
         SPI_MasterTransmit(0x00);
     }
 }
 
-void apa102_end(void) {
-    for (uint8_t i = 0; i < 4; i++) {
+void apa102_end(void)
+{
+    for (uint8_t i = 0; i < 4; i++)
+    {
         SPI_MasterTransmit(0xFF);
     }
 }
 
-void apa102_set_led(uint8_t brightness, uint8_t red, uint8_t green, uint8_t blue) {
+void apa102_set_led(uint8_t brightness, uint8_t red, uint8_t green, uint8_t blue)
+{
     SPI_MasterTransmit((0b11100000) | (brightness & 0b00011111));
     SPI_MasterTransmit(blue);
     SPI_MasterTransmit(green);
     SPI_MasterTransmit(red);
+}
+
+void set_led_d6(uint8_t brightness, uint8_t red, uint8_t green, uint8_t blue)
+{
+    apa102_start();
+
+    apa102_set_led(brightness, red, green, blue);
+    apa102_set_led(0, 0x00, 0x00, 0x00);
+    apa102_set_led(0, 0x00, 0x00, 0x00);
+
+    apa102_end();
 }
 
 int main(void)
@@ -53,13 +69,21 @@ int main(void)
     uart_init();
     SPI_MasterInit();
 
-    apa102_start();
-    apa102_set_led(1, 0xFF, 0x00, 0x00);
-    apa102_set_led(0, 0x00, 0x00, 0x00);
-    apa102_set_led(0, 0x00, 0x00, 0x00);
-    apa102_end();
-    
-    while (1)
+    while (0x42)
     {
+        set_led_d6(1, 0xFF, 0x00, 0x00);
+        _delay_ms(1000);
+        set_led_d6(1, 0x00, 0xFF, 0x00);
+        _delay_ms(1000);
+        set_led_d6(1, 0x00, 0x00, 0xFF);
+        _delay_ms(1000);
+        set_led_d6(1, 0xFF, 0xFF, 0x00);
+        _delay_ms(1000);
+        set_led_d6(1, 0x00, 0xFF, 0xFF);
+        _delay_ms(1000);
+        set_led_d6(1, 0xFF, 0x00, 0xFF);
+        _delay_ms(1000);
+        set_led_d6(1, 0xFF, 0xFF, 0xFF);
+        _delay_ms(1000);
     }
 }

@@ -17,3 +17,18 @@
 
 ### Day 4:
 * I2C transmission (temperature & humidity sensor)
+
+### Day 5:
+* EEPROM
+
+### Day 6:
+* Timers & RGB LEDs
+
+### Day 7:
+* ADC (Analog to Digital Converter)
+
+### Day 8:
+* SPI communication
+
+### Day 9:
+* I2C transmission using an expander (PCA9995): use and control an LCD displayer
